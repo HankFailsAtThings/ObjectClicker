@@ -1,5 +1,5 @@
 # ObjectClicker
-Simple user interface to count objects with Segment Anything as a first pass
+Simple user interface to count objects with Segment Anything. Meant as a first pass for anyone with messy data. Allows easy bootstrapping of object classification data to be used in future models
 
 Example use Case 1: Cell Annotation
 Getting cell counts on irregualr images
