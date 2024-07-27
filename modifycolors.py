@@ -198,12 +198,6 @@ def segment_anything(img):
 starttime = time.time()
 
 
-# convolute with a sharpening kernel
-
-# open each slide 
-#images = Image.open("C:\\Users\\henry\\source\\repos\\modifycolors\\modifycolors\\WM4235_1kPa_Motility_RGB.tif")
-#images = Image.open("C:\\Users\\henry\\source\\repos\\modifycolors\\modifycolors\\WM4235_1kPa_Invasion001.tif")
-images = Image.open("C:\\Users\\henry\\source\\repos\\modifycolors\\modifycolors\\WM4235_25kPa_Invasion002.tif")
 # facebook example 
 #facebook = Image.open("C:\\Users\\henry\\source\\repos\\modifycolors\\modifycolors\\dog.jpg")
 
