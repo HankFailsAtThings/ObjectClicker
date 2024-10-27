@@ -1,14 +1,17 @@
 from asyncio import Lock
+import imghdr
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from PIL import Image, ImageSequence
+from PIL import Image, ImageSequence, ImageTk
 from torch._prims_common import apply_perm
 from sam2.build_sam import build_sam2 
 from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 from threading import Thread, Lock
+
 import tkinter as tk
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle, cv2, csv, time, lzma, shutil, os, copy
+
 
 class PlotApp:
     def __init__(self, root):
@@ -21,6 +24,8 @@ class PlotApp:
         self.filename = "uninit"
         self.slideNum = 0
         self.epoch = str(time.time())
+        self.imgpreview = None
+        self.photo = "junkdata"
         # make data dir
         # self.data_dir = C:\\<insert desired path>\\Cell_Clicker_data"
         self.data_dir = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop') +  "\\Cell_Clicker_data\\"
@@ -33,6 +38,7 @@ class PlotApp:
         self.root.grid_rowconfigure(1, weight=1)
         self.root.grid_columnconfigure(0, weight=10)
 
+        self.crop_layers = 1
         self.current_plot_index = 0
         self.count = 0
         # control frame
@@ -42,7 +48,12 @@ class PlotApp:
         # Button to select the next plot
         self.next_plot_button = tk.Button(self.control_frame, text="Next Plot", command=self.next_plot)
         self.next_plot_button.grid(row=0, column=3, padx=5, pady=5)
+
+        # Button to select the previous plot plot
+        self.prev_plot_button = tk.Button(self.control_frame, text="Previous Plot", command=self.prev_plot)
+        self.prev_plot_button.grid(row=0, column=4, padx=5, pady=5)
         
+
         #button to select the add marker tool
         self.add_marker_button = tk.Button(self.control_frame, text="Add Markers", command=self.selector_button)
         self.add_marker_button.grid(row=0, column=2, padx=5, pady=5)
@@ -55,9 +66,16 @@ class PlotApp:
         self.integer_canvas = tk.Canvas(self.control_frame, width=200, height=50, bg='black')
         self.integer_canvas.grid(row=1, column=2, padx=5, pady=5, columnspan=2)
 
+
         # browse the filesystem for images
-        self.browse_button =tk.Button(self.control_frame, text="Select Image",font=40,command=self.select_file)
+        self.browse_button =tk.Button(self.control_frame, text="Select Image",font=40, command=self.select_file)
         self.browse_button.grid(row=2,column=2)
+        
+        # slider to select numbers of layers to  crop
+        self.crop_slider =tk.Scale(self.control_frame, from_=1, to=4, orient='horizontal', command=self.slider_update)
+        self.crop_slider.grid(row=3,column=2)
+        
+ 
 
         # Frame to hold the plot
         self.plot_frame = tk.Frame(root)
@@ -72,8 +90,26 @@ class PlotApp:
         # resize the image when resizeing the plot
         self.root.bind("<Configure>", self.on_resize)
 
+    #def redraw(self):
+
+
     def on_resize(self, event):
+        #self.canvas.resize()
         self.canvas.draw()
+        #draw()
+
+    def slider_update(self, new_slider_value):
+        self.crop_layers = new_slider_value
+        print(f"set crop layers to {new_slider_value}")
+        
+    def show_preview(self,image_obj):
+        image = image_obj
+        # add Frame to hold the image preview
+        self.preview_image = tk.Canvas(self.control_frame, width=500, height=500)
+        resized = image.resize((500, 500))
+        self.photo = ImageTk.PhotoImage(resized)
+        self.preview_image.create_image(500,500, image=self.photo)
+        self.preview_image.grid(row=4, column=1, padx=5, pady=5, columnspan=2)
 
     def select_file(self):
         self.slideNum = 0
@@ -81,8 +117,11 @@ class PlotApp:
         self.workingfile = filepath
         self.filename = filepath.split("/")[-1].split(".")[0] # please don't look, embarasing 
         print(self.filename)
+        self.root.title(f"Object Clicker: {self.filename}")
         if filepath.endswith(".tif") or filepath.endswith(".tiff"):
-            self.imgs = enumerate(ImageSequence.Iterator(Image.open(filepath)))
+            self.imgs = ImageSequence.Iterator(Image.open(filepath))
+            self.imgpreview = ImageSequence.Iterator(Image.open(filepath))
+            self.show_preview(self.imgpreview[1])
             self.next_plot()
             
         # update image?
@@ -149,7 +188,7 @@ class PlotApp:
         sam2_checkpoint = "sam2_hiera_large.pt"
         model_cfg = "sam2_hiera_l.yaml"
         sam2 = build_sam2(model_cfg, sam2_checkpoint, device="cuda", apply_postprocessing=False) # todo test apply_postprocessing=True
-        mask_generator = SAM2AutomaticMaskGenerator(sam2, crop_n_layers=1)
+        mask_generator = SAM2AutomaticMaskGenerator(sam2, crop_n_layers=int(self.crop_layers))
         masks = mask_generator.generate(image)
         print(len(masks))
         print(masks[0].keys())
@@ -201,13 +240,31 @@ class PlotApp:
         with self.data_file_mutex:
             with open(self.data_filename, 'a', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([self.workingfile, _slideNum ]) # info row
-                writer.writerow([str(_count)]) # count row ,, is wack
-                writer.writerow("GOOD POINTS") # good points
-                writer.writerow(goodpoints) # good points
-                writer.writerow("BAD POINTS")  
-                writer.writerow(badpoints)  
+                writer.writerow([self.workingfile, _slideNum, [str(_count)] ]) #  row
+                #writer.writerow() # count row ,, is wack
+                #writer.writerow("GOOD POINTS") # good points
+                #writer.writerow(goodpoints) # good points
+                #writer.writerow("BAD POINTS")  
+                #writer.writerow(badpoints)  
 
+    def prev_plot(self):
+        self.deleterOn = False
+        self.selectorOn = False
+        self.count = 0
+        self.slideNum = self.slideNum - 1
+        self.root.title(f"Object Clicker: {self.filename}, Slide Number: {self.slideNum}")
+
+        plot_type = "Cells"
+        self.ax.clear()
+        img = self.imgs[self.slideNum]
+        self.workingImg = img
+        self.count, self.points = self.segment_next(img)
+        self.current_plot_index = self.current_plot_index + 1 
+        self.integer_canvas.delete("all")
+        self.integer_canvas.create_text(180, 20, text=str(self.count), fill="red", font=("Arial", 24), anchor="e")
+        self.show_preview(self.imgpreview[self.slideNum + 1])
+        self.canvas.draw()
+        
     def next_plot(self):
         self.deleterOn = False
         self.selectorOn = False
@@ -220,16 +277,18 @@ class PlotApp:
         thread = Thread(target=self.pack_data, args=(data_copy))
         thread.start()
         time.sleep(1) # cause why not
-                
         self.slideNum = self.slideNum + 1
+        self.root.title(f"Object Clicker: {self.filename}, Slide Number: {self.slideNum}")
         plot_type = "Cells"
         self.ax.clear()
-        i, img = next(self.imgs)
+        #i, img = next(self.imgs)
+        img = self.imgs[self.slideNum]
         self.workingImg = img
         self.count, self.points = self.segment_next(img)
         self.current_plot_index = self.current_plot_index + 1 
         self.integer_canvas.delete("all")
         self.integer_canvas.create_text(180, 20, text=str(self.count), fill="red", font=("Arial", 24), anchor="e")
+        self.show_preview(self.imgpreview[self.slideNum + 1])
         self.canvas.draw()
         
     def selector_button(self):
