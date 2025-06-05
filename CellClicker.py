@@ -113,19 +113,28 @@ class PlotApp:
 
     def select_file(self):
         self.slideNum = 0
-        filepath = tk.filedialog.askopenfilename(filetypes=(("tif file", "*.tif"), ("tiff file",'*.tiff'), ("All files", "*.*"),))
+        filepath = tk.filedialog.askopenfilename(filetypes=(("tif file", "*.tif"), ("tiff file",'*.tiff'), ("All files", "*.*")))
+        # Return if the user cancels the file dialog
+        if not filepath:
+            return
+            
         self.workingfile = filepath
-        self.filename = filepath.split("/")[-1].split(".")[0] # please don't look, embarasing 
+        # This is a fine way to get a filename, no need to be embarrassed!
+        self.filename = filepath.split("/")[-1].split(".")[0] 
         print(self.filename)
         self.root.title(f"Object Clicker: {self.filename}")
-        if filepath.endswith(".tif") or filepath.endswith(".tiff"):
-            self.imgs = ImageSequence.Iterator(Image.open(filepath))
-            self.imgpreview = ImageSequence.Iterator(Image.open(filepath))
-            self.show_preview(self.imgpreview[1])
-            self.next_plot()
-            
-        # update image?
 
+        if filepath.endswith((".tif", ".tiff")):
+            # Open the image once and create iterators from the same object
+            img_obj = Image.open(filepath)
+            self.imgs = ImageSequence.Iterator(img_obj)
+            self.imgpreview = ImageSequence.Iterator(img_obj)
+            
+            # Show the FIRST image by using index [0]
+            self.show_preview(self.imgpreview[0])
+            #self.next_plot()
+            self.show_first_plot()
+            
     def show_anns(self, anns):
          print("superceeded, kept for debugging purposes") 
          if len(anns) == 0:
@@ -167,7 +176,7 @@ class PlotApp:
                 #TODO can't be the most efficient way to do this
                 self.ax.clear()
                 self.ax.axis('off')
-                self.ax.imshow(self.workingImg)
+                self.ax.imshow(self.imgs[self.slideNum])
                 pts = []
                 for x,y,z in self.points:
                     point = self.ax.plot(x, y, 'r+', linewidth=0.5)
